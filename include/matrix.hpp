@@ -1,7 +1,10 @@
-#include <iostream>
+#pragma once
+
 #include <span>
 #include <cstdint>
+#include <string>
 #include <functional>
+#include <iostream>
 
 typedef size_t index_t;
 
@@ -48,12 +51,12 @@ class MatrixMemory<
                 free(values);
         }
 
-        /// return nth row
-        std::span<float,COLS> operator[](index_t index)const{
-            return std::span<float,COLS>(((float*)values)+(index*COLS),COLS);
+        /// return nth column
+        float* operator[](index_t index)const{
+            return ((float*)(&values[index*ROWS]));
         }
-        std::span<float,COLS> operator[](index_t index){
-            return std::span<float,COLS>(((float*)values)+(index*COLS),COLS);
+        float* operator[](index_t index){
+            return ((float*)(&values[index*ROWS]));
         }
 };
 
@@ -66,38 +69,45 @@ class MatrixMemory<
     COLS,
     true
 >{
-    private:
+    public:
         float values[ROWS*COLS];
 
     public:
-        /// return nth row
-        std::span<float,COLS> operator[](index_t index)const{
-            return std::span<float,COLS>((float*)values+(index*COLS),COLS);
+        /// return nth column
+        float* operator[](index_t index)const{
+            return (float*)(&(values[index*ROWS]));
         }
 };
 
+
+/// matrix data layout is column-major
 template<
     index_t ROWS,
     index_t COLS
 >
 class Matrix{
-    private:
+    public:
         MatrixMemory<COLS,ROWS> values;
 
     public:
         Matrix(){
             // Matrix::values will be default constructed, which is fine
         }
+        Matrix(const float (&data)[ROWS*COLS]){
+            foreach([&](auto c,auto r){
+                values[c][r]=data[c*ROWS+r];
+            });
+        }
         Matrix(const Matrix& m):Matrix(){
-            foreach([&](auto row,auto col){
-                values[row][col]=m[row][col];
+            foreach([&](auto col,auto row){
+                values[col][row]=m[col][row];
             });
         }
 
         /// initialise each value of the matrix so some value
         Matrix(float v):Matrix(){
-            foreach([&](auto row,auto col){
-                values[row][col]=v;
+            foreach([&](auto col,auto row){
+                values[col][row]=v;
             });
         }
 
@@ -106,36 +116,32 @@ class Matrix{
         typedef std::function<void(index_t,index_t)> FOREACH_FUNC_INDEX;
         /// apply some function to each element index
         void foreach(FOREACH_FUNC_INDEX func)const{
-            for(index_t r=0;r<ROWS;r++){
-                for(index_t c=0;c<COLS;c++){
-                    func(r,c);
+            for(index_t c=0;c<COLS;c++){
+                for(index_t r=0;r<ROWS;r++){
+                    func(c,r);
                 }
             }
         }
         /// apply some function to each element index
         void foreach(FOREACH_FUNC_INDEX func){
-            for(index_t r=0;r<ROWS;r++){
-                for(index_t c=0;c<COLS;c++){
-                    func(r,c);
+            for(index_t c=0;c<COLS;c++){
+                for(index_t r=0;r<ROWS;r++){
+                    func(c,r);
                 }
             }
         }
 
         /// apply some function to each element
         void foreach(std::function<void(float&)> func){
-            for(index_t r=0;r<ROWS;r++){
-                for(index_t c=0;c<COLS;c++){
-                    func(values[r][c]);
-                }
-            }
+            foreach([&](auto c,auto r){
+                func(values[c][r]);
+            });
         }
         /// apply some function to each element
         void foreach(std::function<void(const float&)> func)const{
-            for(index_t r=0;r<ROWS;r++){
-                for(index_t c=0;c<COLS;c++){
-                    func(values[r][c]);
-                }
-            }
+            foreach([&](auto c,auto r){
+                func(values[c][r]);
+            });
         }
 
         // inherit indexing operator from underlying memory wrappers
@@ -156,34 +162,55 @@ class Matrix{
         }
 
         Matrix<ROWS,COLS> operator*(float v)const{
-            auto ret=Matrix<ROWS,COLS>();
-            for(index_t r=0;r<ROWS;r++){
-                for(index_t c=0;c<COLS;c++){
-                    ret[r][c]=values[r][c]*v;
+            auto ret = Matrix<ROWS, COLS>();
+            foreach([&](auto r,auto c){
+                ret[r][c] = values[r][c] * v;
+            });
+            return ret;
+        }
+
+        template<index_t R_COLS>
+        Matrix<R_COLS,ROWS> operator*(const Matrix<COLS,R_COLS> &right)const{
+            auto ret = Matrix<R_COLS,ROWS>{};
+            for(index_t r=0;r<R_COLS;r++){
+                for(index_t c=0;c<ROWS;c++){
+                    float e=0.0;
+                    for(index_t i=0;i<COLS;i++){
+                        e+=values[c][i]*right[i][r];
+                    }
+                    ret[r][c]=e;
                 }
+            }
+            return ret;
+        }
+
+        Matrix<COLS,ROWS> transposed()const{
+            Matrix<COLS,ROWS> ret;
+            foreach([&](auto r,auto c){
+                ret[c][r] = values[r][c];
+            });
+            return ret;
+        }
+
+        std::string string()const{
+            std::string rows[ROWS];
+            foreach([&](auto c,auto r){
+                if(c>0){
+                    rows[r]+="  ";
+                }
+                rows[r]+=std::to_string(values[c][r]);
+            });
+            std::string ret=std::to_string(ROWS)+" rows by "+std::to_string(COLS)+" columns:\n";
+            for(auto i=0;i<ROWS*COLS;i++){
+                std::cout<<i<<" : "<<values.values[i]<<std::endl;
+            }
+            for(auto row:rows){
+                ret+=row+"\n";
             }
             return ret;
         }
 };
 
-int main(int, char**) {
-    {
-        constexpr index_t MSIZE=1024*16;
-        Matrix<MSIZE,MSIZE> somematrix(2);
-
-        std::cout
-            << "runtime sum " << somematrix.sum() << "\n"
-            << "expected    " << MSIZE*MSIZE*2.0
-            << std::endl;
-    }
-    {
-        constexpr index_t MSIZE=1024;
-        Matrix<MSIZE,MSIZE> somematrix(2);
-        auto newmatrix=somematrix*2.0;
-
-        std::cout
-            << "runtime sum " << newmatrix.sum() << "\n"
-            << "expected    " << MSIZE*MSIZE*4.0
-            << std::endl;
-    }
-}
+class Vec3:public Matrix<3,1>{};
+class Vec4:public Matrix<4,1>{};
+class Mat4:public Matrix<4,4>{};

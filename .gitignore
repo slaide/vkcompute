@@ -33,3 +33,8 @@
 
 # cmake build output
 build
+*.cmake
+*.tcl
+CMakeFiles
+.cache
+Testing
