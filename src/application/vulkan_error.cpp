@@ -5,7 +5,7 @@ std::string VulkanError::info()const{
     std::string context_string;
     #define VK_ERROR_CONTEXT_CASE(error_context) \
         case VulkanErrorContext::error_context: \
-            context_string="$error_context"; \
+            context_string=#error_context; \
             break;
 
     switch(context){
@@ -25,6 +25,7 @@ std::string VulkanError::info()const{
         VK_ERROR_CONTEXT_CASE(AllocateMemory)
         VK_ERROR_CONTEXT_CASE(BindBufferMemory)
         VK_ERROR_CONTEXT_CASE(CreateXCBSurface)
+        VK_ERROR_CONTEXT_CASE(SwapchainAcquireNextImage)
     }
     res+=context_string;
     res+=" failed";

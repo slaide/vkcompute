@@ -6,7 +6,12 @@
 #include <memory>
 #include <iostream>
 
-#include <xcb/xcb.h>
+#ifdef VK_USE_PLATFORM_XCB_KHR
+    #include <xcb/xcb.h>
+#elif VK_USE_PLATFORM_METAL_EXT
+    #include<objc/objc-runtime.h>
+#endif
+
 #include <vulkan/vulkan.h>
 
 #include <application/vulkan_context.h>
@@ -23,7 +28,11 @@ struct WindowResizeEvent{
 struct PointerEnteredWindow{};
 struct PointerExitedWindow{};
 struct WindowCloseEvent{
-    xcb_window_t window_handle;
+    #ifdef VK_USE_PLATFORM_XCB_KHR
+        xcb_window_t window_handle;
+    #elif VK_USE_PLATFORM_METAL_EXT
+        id window_handle;
+    #endif
 };
 struct PointerMoved{
     float x;
@@ -88,21 +97,28 @@ class Window{
         int screen_x=0;
         int screen_y=0;
     private:
-        xcb_connection_t *xcb_connection;
+        #ifdef VK_USE_PLATFORM_XCB_KHR
+            xcb_connection_t *xcb_connection;
+        #endif
     public:
-        xcb_window_t window_handle;
-        xcb_atom_t wm_delete_atom;
+        #ifdef VK_USE_PLATFORM_XCB_KHR
+            xcb_window_t window_handle;
+            xcb_atom_t wm_delete_atom;
+        #elif VK_USE_PLATFORM_METAL_EXT
+            id window_handle;
+        #endif
 
     private:
         std::shared_ptr<VulkanContext> vulkan;
 
     public:
+        VkSurfaceKHR vk_surface=VK_NULL_HANDLE;
+        
         VkSwapchainKHR vk_swapchain=VK_NULL_HANDLE;
         std::vector<VkImage> swapchain_images;
         std::vector<VkFramebuffer> vk_swapchain_framebuffers;
         std::vector<VkImageView> vk_swapchain_image_views;
 
-        VkSurfaceKHR vk_surface=VK_NULL_HANDLE;
         VkSurfaceFormatKHR vk_swapchain_surface_format;
     
     private:
@@ -111,14 +127,18 @@ class Window{
         }
 
         /// flush window system I/O
+        #ifdef VK_USE_PLATFORM_XCB_KHR
         void flush(){
             xcb_flush(xcb_connection);
         }
+        #endif
     
     public:
         /// creates a window with a surface, but without a swapchain
         Window(
-            xcb_connection_t *xcb_connection,
+            #ifdef VK_USE_PLATFORM_XCB_KHR
+                xcb_connection_t *xcb_connection,
+            #endif
             std::shared_ptr<VulkanContext> vulkan,
             int width,
             int height,
@@ -127,10 +147,12 @@ class Window{
             int screen_index=0
         );
 
-        xcb_atom_t get_intern_atom(
-            std::string atom_name,
-            bool only_if_exists=false
-        )const;
+        #ifdef VK_USE_PLATFORM_XCB_KHR
+            xcb_atom_t get_intern_atom(
+                std::string atom_name,
+                bool only_if_exists=false
+            )const;
+        #endif
 
         void create_framebuffers(
             VkRenderPass render_pass
@@ -161,4 +183,5 @@ class Window{
         }
 
         ~Window();
+        void platform_destroy();
 };

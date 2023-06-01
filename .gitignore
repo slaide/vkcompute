@@ -38,3 +38,4 @@ build
 CMakeFiles
 .cache
 Testing
+/application

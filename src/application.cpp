@@ -1,5 +1,6 @@
 #include "application/vulkan_error.h"
 #include "application/window.h"
+#include "vulkan/vulkan_metal.h"
 #include <chrono>
 #include <thread>
 #include <iostream>
@@ -9,10 +10,13 @@
 #include <vulkan/vulkan_core.h>
 
 Application::Application(){
+    std::cout<<"creating a new application"<<std::endl;
+    #ifdef VK_USE_PLATFORM_XCB_KHR
     xcb_connection=xcb_connect(
         nullptr,
         nullptr
     );
+    #endif
 
     std::cout<<"supported instance layers:"<<std::endl;
     for(auto instance_layer_property:Application::enumerateInstanceLayerProperties()){
@@ -35,20 +39,27 @@ Application::Application(){
     auto application_info=VkApplicationInfo{
         VK_STRUCTURE_TYPE_APPLICATION_INFO,
         nullptr,
-        "vkcompute-app",
+        "vkcomputeapp",
         VK_MAKE_API_VERSION(0, 0, 1, 0),
-        "vkcompute-engine",
+        "vkcomputeengine",
         VK_MAKE_API_VERSION(0, 0, 1, 0),
-        VK_MAKE_API_VERSION(0, 1, 0, 0)
+        VK_API_VERSION_1_0
     };
     std::vector<const char*>instance_layers{
         "VK_LAYER_KHRONOS_validation"
     };
     std::vector<const char*>instance_extensions{
         "VK_KHR_surface",
-        "VK_KHR_xcb_surface"
+        #ifdef VK_USE_PLATFORM_XCB_KHR
+            "VK_KHR_xcb_surface",
+        #elif VK_USE_PLATFORM_METAL_EXT
+            VK_EXT_METAL_SURFACE_EXTENSION_NAME,
+            "VK_KHR_portability_enumeration",
+            "VK_KHR_get_physical_device_properties2"
+        #endif
     };
-    auto instance_create_info=VkInstanceCreateInfo{
+
+    VkInstanceCreateInfo instance_create_info{
         VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         nullptr,
         0,
@@ -58,6 +69,9 @@ Application::Application(){
         static_cast<uint32_t>(instance_extensions.size()),
         instance_extensions.data()
     };
+    #ifdef VK_USE_PLATFORM_METAL_EXT
+    instance_create_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+    #endif
 
     VkAllocationCallbacks *vk_allocator=nullptr;
     VkInstance vk_instance;
@@ -74,7 +88,10 @@ Application::Application(){
         "VK_LAYER_KHRONOS_validation"
     };
     std::vector<const char*> device_extensions{
-        "VK_KHR_swapchain"
+        "VK_KHR_swapchain",
+        #ifdef  VK_USE_PLATFORM_METAL_EXT
+        "VK_KHR_portability_subset",
+        #endif
     };
 
     uint32_t num_physical_devices;
@@ -82,105 +99,115 @@ Application::Application(){
     std::vector<VkPhysicalDevice> physical_devices(num_physical_devices);
     vkEnumeratePhysicalDevices(vk_instance,&num_physical_devices,physical_devices.data());
 
-    this->vulkan=std::make_shared<VulkanContext>(vk_allocator,vk_instance,VK_NULL_HANDLE,VK_NULL_HANDLE);
-    auto test_window=create_window(100,100);
-
     VkPhysicalDevice vk_physical_device=VK_NULL_HANDLE;
-    for(auto physical_device:physical_devices){
-        bool device_is_usable=false;
+    {
+        auto temp_vulkan=std::make_shared<VulkanContext>(vk_allocator,vk_instance,VK_NULL_HANDLE,VK_NULL_HANDLE);
+        auto test_window=create_window(100,100,temp_vulkan);
 
-        auto _=defer([&]()->void{
-            if(device_is_usable){
-                std::cout<<"-- viable device found"<<std::endl;
-            }else{
-                std::cout<<"-- device is not viable"<<std::endl;
+        for(auto physical_device:physical_devices){
+            bool device_is_usable=false;
+
+            auto _=defer([&]()->void {
+                if(device_is_usable){
+                    std::cout<<"-- viable device found"<<std::endl;
+                }else{
+                    std::cout<<"-- device is not viable"<<std::endl;
+                }
+            });
+
+            uint32_t num_device_layer_properties=0;
+            vkEnumerateDeviceLayerProperties(physical_device,&num_device_layer_properties,nullptr);
+            std::vector<VkLayerProperties> device_layer_properties(num_device_layer_properties);
+            vkEnumerateDeviceLayerProperties(physical_device,&num_device_layer_properties,device_layer_properties.data());
+            std::cout<<"device layers:"<<std::endl;
+            for(auto device_layer_property:device_layer_properties){
+                std::cout<<"  "<<device_layer_property.layerName<<std::endl;
             }
-        });
 
-        uint32_t num_device_layer_properties=0;
-        vkEnumerateDeviceLayerProperties(physical_device,&num_device_layer_properties,nullptr);
-        std::vector<VkLayerProperties> device_layer_properties(num_device_layer_properties);
-        vkEnumerateDeviceLayerProperties(physical_device,&num_device_layer_properties,device_layer_properties.data());
-        std::cout<<"device layers:"<<std::endl;
-        for(auto device_layer_property:device_layer_properties){
-            std::cout<<"  "<<device_layer_property.layerName<<std::endl;
-        }
+            uint32_t num_device_extension_properties=0;
+            vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &num_device_extension_properties, nullptr);
+            std::vector<VkExtensionProperties> device_extension_properties(num_device_extension_properties);
+            vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &num_device_extension_properties, device_extension_properties.data());
+            std::cout<<"device extensions:"<<std::endl;
+            for(auto device_extension_property:device_extension_properties){
+                std::cout<<"  "<<device_extension_property.extensionName<<std::endl;
+            }
 
-        uint32_t num_device_extension_properties=0;
-        vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &num_device_extension_properties, nullptr);
-        std::vector<VkExtensionProperties> device_extension_properties(num_device_extension_properties);
-        vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &num_device_extension_properties, device_extension_properties.data());
-        std::cout<<"device extensions:"<<std::endl;
-        for(auto device_extension_property:device_extension_properties){
-            std::cout<<"  "<<device_extension_property.extensionName<<std::endl;
-        }
+            VkPhysicalDeviceProperties physical_device_properties;
+            vkGetPhysicalDeviceProperties(physical_device, &physical_device_properties);
+            std::cout << physical_device_properties.deviceName << std::endl;
 
-        VkPhysicalDeviceProperties physical_device_properties;
-        vkGetPhysicalDeviceProperties(physical_device, &physical_device_properties);
-        std::cout << physical_device_properties.deviceName << std::endl;
+            // we want some gpu
+            switch(physical_device_properties.deviceType){
+                case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+                    std::cout<<"VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU"<<std::endl;
+                    break;
+                case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+                    std::cout<<"VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU"<<std::endl;
+                    break;
+                case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+                    std::cout<<"VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU"<<std::endl;
+                    break;
+                case VK_PHYSICAL_DEVICE_TYPE_CPU:
+                    std::cout<<"VK_PHYSICAL_DEVICE_TYPE_CPU"<<std::endl;
+                    continue;
+                case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+                    std::cout<<"VK_PHYSICAL_DEVICE_TYPE_OTHER"<<std::endl;
+                    continue;
+                default:
+                    std::cout<<"warning - found invalid vulkan device"<<std::endl;
+                    continue;
+            }
 
-        // we want some gpu
-        switch(physical_device_properties.deviceType){
-            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
-                std::cout<<"VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU"<<std::endl;
-                break;
-            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
-                std::cout<<"VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU"<<std::endl;
-                break;
-            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
-                std::cout<<"VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU"<<std::endl;
-                break;
-            case VK_PHYSICAL_DEVICE_TYPE_CPU:
-                std::cout<<"VK_PHYSICAL_DEVICE_TYPE_CPU"<<std::endl;
-                continue;
-            case VK_PHYSICAL_DEVICE_TYPE_OTHER:
-                std::cout<<"VK_PHYSICAL_DEVICE_TYPE_OTHER"<<std::endl;
-                continue;
-            default:
-                std::cout<<"warning - found invalid vulkan device"<<std::endl;
-                continue;
-        }
-
-        uint32_t physical_device_num_queue_family_properties;
-        vkGetPhysicalDeviceQueueFamilyProperties(
-            physical_device, 
-            &physical_device_num_queue_family_properties, 
-            nullptr
-        );
-        std::vector<VkQueueFamilyProperties> physical_device_queue_family_properties(physical_device_num_queue_family_properties);
-        vkGetPhysicalDeviceQueueFamilyProperties(
-            physical_device, 
-            &physical_device_num_queue_family_properties, 
-            physical_device_queue_family_properties.data()
-        );
-
-        int queue_family_index=0;
-        for(auto queue_family:physical_device_queue_family_properties){
-            std::cout<<queue_family.queueCount<<" queues allowed of family "<<queue_family_index<<std::endl;
-
-            bool supports_transfer=(queue_family.queueFlags&VK_QUEUE_TRANSFER_BIT)>0;
-            bool supports_graphics=(queue_family.queueFlags&VK_QUEUE_GRAPHICS_BIT)>0;
-
-            VkBool32 supports_presentation=VK_FALSE;
-            vkGetPhysicalDeviceSurfaceSupportKHR(
+            uint32_t physical_device_num_queue_family_properties;
+            vkGetPhysicalDeviceQueueFamilyProperties(
                 physical_device, 
-                queue_family_index, 
-                test_window->vk_surface,
-                &supports_presentation
+                &physical_device_num_queue_family_properties, 
+                nullptr
+            );
+            std::vector<VkQueueFamilyProperties> physical_device_queue_family_properties(physical_device_num_queue_family_properties);
+            vkGetPhysicalDeviceQueueFamilyProperties(
+                physical_device, 
+                &physical_device_num_queue_family_properties, 
+                physical_device_queue_family_properties.data()
             );
 
-            if(supports_presentation){
-                vk_present_queue_family_index=queue_family_index;
-            }
-            if(supports_graphics && supports_transfer){
-                vk_graphics_queue_family_index=queue_family_index;
-            }
-            
-            queue_family_index++;
-        }
+            vk_present_queue_family_index=-1;
+            vk_graphics_queue_family_index=-1;
 
-        device_is_usable=true;
-        vk_physical_device=physical_device;
+            int queue_family_index=0;
+            for(auto queue_family:physical_device_queue_family_properties){
+                std::cout<<queue_family.queueCount<<" queues allowed of family "<<queue_family_index<<std::endl;
+
+                bool supports_transfer=(queue_family.queueFlags&VK_QUEUE_TRANSFER_BIT)>0;
+                bool supports_graphics=(queue_family.queueFlags&VK_QUEUE_GRAPHICS_BIT)>0;
+
+                auto supports_presentation=VK_FALSE;
+                auto res=vkGetPhysicalDeviceSurfaceSupportKHR(
+                    physical_device, 
+                    queue_family_index, 
+                    test_window->vk_surface,
+                    &supports_presentation
+                );
+                if(res!=VK_SUCCESS){
+                    std::cout<<"failed vkGetPhysicalDeviceSurfaceSupportKHR with "<<res<<std::endl;
+                }
+
+                if(supports_presentation && vk_present_queue_family_index==-1){
+                    std::cout<<"supports presentation"<<std::endl;
+                    vk_present_queue_family_index=queue_family_index;
+                }
+                if(supports_graphics && vk_graphics_queue_family_index==-1 && vk_present_queue_family_index!=queue_family_index){
+                    std::cout<<"supports graphics"<<std::endl;
+                    vk_graphics_queue_family_index=queue_family_index;
+                }
+                
+                queue_family_index++;
+            }
+
+            device_is_usable=true;
+            vk_physical_device=physical_device;
+        }
     }
 
     if(vk_physical_device==VK_NULL_HANDLE){
@@ -332,7 +359,7 @@ Application::Application(){
         throw VulkanError(VulkanErrorContext::CreateRenderPass,res);
     }
 
-    window->create_framebuffers(vk_render_pass);
+    this->window->create_framebuffers(vk_render_pass);
 }
 
 Application::~Application(){
@@ -350,12 +377,14 @@ Application::~Application(){
         vulkan.reset();
     }
 
+    #ifdef VK_USE_PLATFORM_XCB_KHR
     xcb_disconnect(
         xcb_connection
     );
+    #endif
 }
 
-void Application::run(){
+void Application::run_forever(){
     vulkan->deviceWaitIdle();
 
     auto create_semaphore_info=VkSemaphoreCreateInfo{

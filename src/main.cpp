@@ -1,10 +1,11 @@
-#include <iostream>
+/*#include <iostream>
+#include <cstdio>
 #include <matrix.hpp>
-#include <application.h>
+#include <application.h>*/
 
-int main(int, char**) {
+/*int main(int, char**) {
     {
-        constexpr index_t MSIZE=1024*2;
+        constexpr index_t MSIZE=1024*3;
         Matrix<MSIZE,MSIZE> somematrix(2);
 
         std::cout
@@ -22,8 +23,8 @@ int main(int, char**) {
             << "expected    " << MSIZE*MSIZE*4.0
             << std::endl;
     }
-    try{
-        auto app=std::make_shared<Application>();
+    {
+
 
         Vec3 v{1.0f};
         std::cout<<v.string()<<std::endl;
@@ -69,9 +70,12 @@ int main(int, char**) {
             }
             std::cout<<std::endl;
         }
+    }
+    try{
+        auto app=std::make_shared<Application>();
 
         app->run();
     }catch(VulkanError *vk_error){
         std::cout<<vk_error->info()<<std::endl;
     };
-}
+}*/

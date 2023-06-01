@@ -8,8 +8,11 @@
 #include <optional>
 
 #include <vulkan/vulkan.h>
+
+#ifdef VK_USE_PLATFORM_XCB_KHR
 #include <xcb/xcb.h>
 #include <xcb/xproto.h>
+#endif
 
 #define discard (void)
 struct defer{
@@ -32,7 +35,9 @@ struct defer{
 
 class Application{
     private:
-        xcb_connection_t *xcb_connection;
+        #ifdef VK_USE_PLATFORM_XCB_KHR
+            xcb_connection_t *xcb_connection;
+        #endif
 
         std::shared_ptr<VulkanContext> vulkan;
 
@@ -78,22 +83,39 @@ class Application{
         }
 
         Application();
+        Application(Application&)=delete;
+        Application(Application&&)=delete;
 
-        void run();
+        void run_forever();
 
         ~Application();
 
         std::shared_ptr<Window> create_window(
             int width,
-            int height
+            int height,
+            std::optional<std::shared_ptr<VulkanContext>> override_context = {}
         ){
-            std::shared_ptr<Window> window=std::make_shared<Window>(
-                xcb_connection,
-                vulkan,
-                width,
-                height
-            );
-            return window;
+            if(override_context){
+                std::shared_ptr<Window> window=std::make_shared<Window>(
+                    #ifdef VK_USE_PLATFORM_XCB_KHR
+                        xcb_connection,
+                    #endif
+                    *override_context,
+                    width,
+                    height
+                );
+                return window;
+            }else{
+                std::shared_ptr<Window> window=std::make_shared<Window>(
+                    #ifdef VK_USE_PLATFORM_XCB_KHR
+                        xcb_connection,
+                    #endif
+                    vulkan,
+                    width,
+                    height
+                );
+                return window;
+            }
         }
 
     public:

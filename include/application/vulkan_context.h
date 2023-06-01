@@ -1,5 +1,7 @@
 #pragma once
 
+#include "vulkan/vulkan_core.h"
+#include <stdexcept>
 #include <vulkan/vulkan.h>
 
 class VulkanContext{
@@ -7,7 +9,7 @@ class VulkanContext{
         VkAllocationCallbacks *allocator=nullptr;
         VkInstance instance;
         VkPhysicalDevice physical_device;
-        VkDevice device;
+        VkDevice device=VK_NULL_HANDLE;
 
         VulkanContext(
             VkAllocationCallbacks *vk_allocator,
@@ -17,6 +19,8 @@ class VulkanContext{
         ):allocator{vk_allocator},instance{vk_instance},physical_device{vk_physical_device},device{vk_device}{
             
         }
+        VulkanContext(VulkanContext&)=delete;
+        VulkanContext(VulkanContext&&)=delete;
 
         ~VulkanContext(){
             // context without device is used as temporary container for instance and allocator
@@ -28,6 +32,7 @@ class VulkanContext{
                     allocator
                 );
             
+                //throw new std::runtime_error("whatever");
                 vkDestroyInstance(
                     instance,
                     allocator
@@ -36,7 +41,9 @@ class VulkanContext{
         }
 
         void deviceWaitIdle()const{
-            vkDeviceWaitIdle(device);
+            if(device!=VK_NULL_HANDLE){
+                vkDeviceWaitIdle(device);
+            }
         }
 };
 

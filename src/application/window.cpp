@@ -25,8 +25,10 @@ std::string WindowEvent::string()const{
             return "ScrollEvent \{ scroll_x: "+std::to_string(ev->scroll_x)+" , scroll_y: "+std::to_string(ev->scroll_y)+" }";
         }else if MATCHES(PointerMoved){
             return "PointerMoved \{ x: "+std::to_string(ev->x)+" , y: "+std::to_string(ev->y)+" }";
+    #ifdef VK_USE_PLATFORM_XCB_KHR
         }else if MATCHES(WindowCloseEvent){
             return "WindowCloseEvent \{ window: "+std::to_string(ev->window_handle)+" }";
+        #endif
         }else if MATCHES(PointerEnteredWindow){
             return "PointerEnteredWindow";
         }else if MATCHES(PointerExitedWindow){
@@ -41,6 +43,7 @@ std::string WindowEvent::string()const{
     },event_variant);
 }
 
+#ifdef VK_USE_PLATFORM_XCB_KHR
 Window::Window(
     xcb_connection_t *xcb_connection,
     std::shared_ptr<VulkanContext> vulkan,
@@ -137,6 +140,7 @@ Window::Window(
         create_swapchain();
     }
 }
+#endif
 
 void Window::create_swapchain(){
     VkSurfaceCapabilitiesKHR surface_capabilities;
@@ -218,9 +222,12 @@ void Window::create_swapchain(){
     swapchain_images.resize(num_swapchain_images);
     vkGetSwapchainImagesKHR(vulkan->device,vk_swapchain,&num_swapchain_images,swapchain_images.data());
 
-    flush();
+    #ifdef VK_USE_PLATFORM_XCB_KHR
+        flush();
+    #endif
 }
 
+#ifdef VK_USE_PLATFORM_XCB_KHR
 xcb_atom_t Window::get_intern_atom(
     std::string atom_name,
     bool only_if_exists
@@ -243,6 +250,7 @@ xcb_atom_t Window::get_intern_atom(
 
     return intern_atom;
 }
+#endif
 
 void Window::create_framebuffers(
     VkRenderPass render_pass
@@ -307,9 +315,12 @@ void Window::create_framebuffers(
         }
     }
 
-    flush();
+    #ifdef VK_USE_PLATFORM_XCB_KHR
+        flush();
+    #endif
 }
 
+#ifdef VK_USE_PLATFORM_XCB_KHR
 std::vector<WindowEvent> Window::get_latest_events(){
     std::vector<WindowEventVariant> events;
     while(auto xcb_event=xcb_poll_for_event(xcb_connection)){
@@ -449,6 +460,17 @@ std::vector<WindowEvent> Window::get_latest_events(){
     }
     return window_events;
 }
+#endif
+
+#ifdef VK_USE_PLATFORM_METAL_EXT
+
+#include<objc/objc.h>
+
+std::vector<WindowEvent> Window::get_latest_events(){
+    std::vector<WindowEvent> ret{};
+    return ret;
+}
+#endif
 
 Window::~Window(){
     if(is_non_temp_window()){
@@ -468,8 +490,13 @@ Window::~Window(){
         vulkan->allocator
     );
 
+    platform_destroy();
+}
+#ifdef VK_USE_PLATFORM_XCB_KHR
+void Window::platform_destroy(){
     xcb_unmap_window(xcb_connection, window_handle);
     xcb_destroy_window(xcb_connection, window_handle);
 
     flush();
 }
+#endif
