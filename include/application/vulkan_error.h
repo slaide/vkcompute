@@ -23,6 +23,9 @@ enum class VulkanErrorContext{
     BindBufferMemory,
     CreateXCBSurface,
     SwapchainAcquireNextImage,
+    CreateCommandPool,
+    AllocateCommandBuffers,
+    CreateGraphicsPipelines,
 };
 class VulkanError{
     private:
@@ -40,4 +43,9 @@ class VulkanError{
         ):context(context){}
 
         std::string info()const;
+
+        static void check(
+            VulkanErrorContext context,
+            VkResult vk_res
+        );
 };

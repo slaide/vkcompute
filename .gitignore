@@ -31,6 +31,10 @@
 *.out
 *.app
 
+# vscode workspace cache
+*.code-workspace
+.vscode
+
 # cmake build output
 build
 *.cmake
@@ -38,4 +42,10 @@ build
 CMakeFiles
 .cache
 Testing
+
+# bear build output
+compile_commands.json
+
+# build output
 /application
+*.spv

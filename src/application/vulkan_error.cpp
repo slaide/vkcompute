@@ -1,3 +1,4 @@
+#include "vulkan/vulkan_core.h"
 #include <application/vulkan_error.h>
 
 std::string VulkanError::info()const{
@@ -26,6 +27,9 @@ std::string VulkanError::info()const{
         VK_ERROR_CONTEXT_CASE(BindBufferMemory)
         VK_ERROR_CONTEXT_CASE(CreateXCBSurface)
         VK_ERROR_CONTEXT_CASE(SwapchainAcquireNextImage)
+        VK_ERROR_CONTEXT_CASE(CreateCommandPool)
+        VK_ERROR_CONTEXT_CASE(AllocateCommandBuffers)
+        VK_ERROR_CONTEXT_CASE(CreateGraphicsPipelines)
     }
     res+=context_string;
     res+=" failed";
@@ -73,3 +77,13 @@ std::string VulkanError::info()const{
     res+=vk_res_string;
     return res;
 }
+
+void VulkanError::check(
+    VulkanErrorContext context,
+    VkResult vk_res
+){
+    if (vk_res!=VK_SUCCESS) {
+        throw VulkanError(context,vk_res);
+    }    
+}
+

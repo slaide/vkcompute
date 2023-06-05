@@ -1,5 +1,3 @@
-#include <CoreVideo/CoreVideo.h>
-#include <QuartzCore/QuartzCore.h>
 #include <cstdbool>
 #include <cstdio>
 #include <iostream>
@@ -9,11 +7,10 @@
 #include <string>
 #include <optional>
 
-#include<vulkan/vulkan.h>
+#include <vulkan/vulkan.h>
 
+#import <QuartzCore/QuartzCore.h>
 #import <AppKit/AppKit.h>
-#import <Cocoa/Cocoa.h>
-#import <MetalKit/MetalKit.h>
 
 #include <application.h>
 #include <application/window.h>
@@ -28,8 +25,6 @@
         self=[super init];
 
         self.wantsLayer=YES;
-
-        printf("called myview init\n");
 
         return self;
     }
@@ -126,8 +121,8 @@ CVReturn display_link_callback(
     void *displayLinkContext
 ){
     MyAppDelegate *app_delegate=static_cast<MyAppDelegate*>(displayLinkContext);
-    app_delegate.app->run_forever();
-    return  kCVReturnSuccess;
+    app_delegate.app->run_step();
+    return kCVReturnSuccess;
 }
 
 @implementation MyAppDelegate

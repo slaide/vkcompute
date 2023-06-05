@@ -1,5 +1,6 @@
 #pragma once
 
+#include <c++/v1/__config>
 #include <cstdlib>
 #include <vector>
 #include <cstdint>
@@ -33,6 +34,17 @@ struct defer{
 #include <application/vulkan_error.h>
 #include <application/window.h>
 
+class GraphicsPipeline{
+    public:
+        VkPipelineLayout layout;
+        VkPipeline handle;
+
+        GraphicsPipeline(
+            std::shared_ptr<VulkanContext> vulkan,
+            VkRenderPass vk_render_pass
+        );
+};
+
 class Application{
     private:
         #ifdef VK_USE_PLATFORM_XCB_KHR
@@ -47,6 +59,18 @@ class Application{
         uint32_t vk_present_queue_family_index;
 
         VkRenderPass vk_render_pass;
+
+        VkSemaphore vk_image_available_semaphore_handle;
+        std::shared_ptr<Semaphore> vk_image_available_semaphore;
+        VkSemaphore vk_rendering_finished_semaphore_handle;
+        std::shared_ptr<Semaphore> vk_rendering_finished_semaphore;
+        VkCommandPool present_vk_command_pool;
+        std::vector<VkCommandBuffer> present_command_buffers;
+        VkCommandPool graphics_vk_command_pool;
+        std::vector<VkCommandBuffer> graphics_command_buffers;
+
+        bool should_keep_running=true;
+        bool should_resize_window=false;
 
         std::shared_ptr<Window> window;
 
@@ -86,6 +110,9 @@ class Application{
         Application(Application&)=delete;
         Application(Application&&)=delete;
 
+        /// run main event loop once
+        void run_step();
+        /// run main event loop until window is closed
         void run_forever();
 
         ~Application();
